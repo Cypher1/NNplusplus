@@ -6,9 +6,6 @@
 //  Last edited by Joshua Pratt on 10/01/16.
 //
 
-#include <cmath>  // INFINITY
-#include <iostream>
-
 #include "Matrix.hpp"
 
 /*
@@ -29,36 +26,18 @@
 
 Matrix::Matrix(const size_t m, const size_t n) : n_rows{m}, n_cols{n} {
     matrix_ = new double[size()]();
-    rowPtrs_ = new double *[n_rows];
+    rowPtrs_ = new double *[nRows()];
 
-    for (size_t i = 0; i < n_rows; ++i) {
-        rowPtrs_[i] = matrix_ + i * n_cols;
+    for (size_t i = 0; i < nRows(); ++i) {
+        rowPtrs_[i] = matrix_ + i * nCols();
     }
-}
-
-Matrix::Matrix(const Matrix &rhs) : Matrix(rhs.n_rows, rhs.n_cols) {
-    std::copy(rhs.matrix_, rhs.matrix_ + size(), matrix_);
-}
-
-Matrix &Matrix::operator=(const Matrix &rhs) {
-    if (this != &rhs) {
-        if (n_rows != rhs.n_rows || n_cols != rhs.n_cols) {
-            Matrix copy(rhs);
-            std::swap(*this, copy);
-        } else {
-            std::copy(rhs.matrix_, rhs.matrix_ + size(), matrix_);
-        }
-    }
-    return *this;
 }
 
 Matrix::Matrix(Matrix &&rhs)
-    : n_rows{rhs.n_rows},
-      n_cols{rhs.n_cols},
+    : n_rows{rhs.nRows()},
+      n_cols{rhs.nCols()},
       matrix_{rhs.matrix_},
       rowPtrs_{rhs.rowPtrs_} {
-    rhs.n_rows = 0;
-    rhs.n_cols = 0;
     rhs.matrix_ = nullptr;
     rhs.rowPtrs_ = nullptr;
 }
@@ -76,178 +55,3 @@ Matrix::~Matrix() {
     delete[] rowPtrs_;
 }
 
-/**********************************************************
- * Operator Overloads
- **********************************************************/
-
-double &Matrix::operator()(const size_t row, const size_t col) {
-    return rowPtrs_[row][col];
-}
-
-const double &Matrix::operator()(const size_t row, const size_t col) const {
-    return rowPtrs_[row][col];
-}
-
-bool Matrix::operator==(const double &x) const {
-    for (size_t i = 0; i < size(); ++i) {
-        double difference = fabs((matrix_[i] - x) / x);
-        if (difference > 0.0000001) return false;
-    }
-    return true;
-}
-
-bool Matrix::operator==(const Matrix &rhs) const {
-    if (rhs.n_rows != n_rows) return false;
-    if (rhs.n_cols != n_cols) return false;
-
-    for (size_t i = 0; i < size(); ++i) {
-        double difference = fabs((matrix_[i] - rhs.matrix_[i]) / rhs.matrix_[i]);
-        if (difference > 0.0000001) return false;
-    }
-    return true;
-}
-
-void checkMatrixDimensionMatch(const Matrix &lhs, const Matrix &rhs) {
-    if (lhs.getNumOfRows() != rhs.getNumOfRows() ||
-        lhs.getNumOfCols() != rhs.getNumOfCols()) {
-        throw MatrixDimensionsMismatch(
-            std::make_pair(lhs.getNumOfRows(), lhs.getNumOfCols()),
-            std::make_pair(rhs.getNumOfRows(), rhs.getNumOfCols()));
-    }
-}
-
-// ADDITION
-Matrix &Matrix::operator+=(const Matrix &rhs) {
-    checkMatrixDimensionMatch(*this, rhs);
-    for (size_t i = 0; i < size(); ++i) {
-        matrix_[i] += rhs.matrix_[i];
-    }
-    return *this;
-}
-
-// SUBTRACTION
-Matrix &Matrix::operator-=(const Matrix &rhs) {
-    checkMatrixDimensionMatch(*this, rhs);
-    for (size_t i = 0; i < size(); ++i) {
-        matrix_[i] -= rhs.matrix_[i];
-    }
-    return *this;
-}
-
-// MULTIPLICATION
-Matrix &Matrix::operator*=(const Matrix &rhs) {
-    checkMatrixDimensionMatch(*this, rhs);
-    for (size_t i = 0; i < size(); ++i) {
-        matrix_[i] *= rhs.matrix_[i];
-    }
-    return *this;
-}
-
-// DIVISION
-Matrix &Matrix::operator/=(const Matrix &rhs) {
-    checkMatrixDimensionMatch(*this, rhs);
-    for (size_t i = 0; i < size(); ++i) {
-        matrix_[i] /= rhs.matrix_[i];
-    }
-    return *this;
-}
-
-// PRINT MATRIX
-std::ostream &operator<<(std::ostream &os, const Matrix &rhs) {
-    os << "[";
-    for (auto i = 0U; i < rhs.getNumOfRows(); ++i) {
-        os << "[";
-        for (auto j = 0U; j < rhs.getNumOfCols(); ++j) {
-            if (j != 0) {
-                os << ", ";
-            }
-            os << rhs(i, j);
-        }
-        os << "]";
-    }
-    os << "]";
-    return os;
-}
-
-/**********************************************************
- * Other Functions
- **********************************************************/
-
-Matrix Matrix::dot(const Matrix &rhs) const {
-    if (n_cols != rhs.n_rows) {
-        throw MatrixInnerDimensionsMismatch(
-            std::make_pair(n_rows, n_cols),
-            std::make_pair(rhs.n_rows, rhs.n_cols));
-    }
-    Matrix dproduct(n_rows, rhs.n_cols);
-    for (size_t i = 0; i < dproduct.n_rows; ++i) {
-        for (size_t j = 0; j < dproduct.n_cols; ++j) {
-            double &dot = dproduct.rowPtrs_[i][j];
-            for (size_t k = 0; k < n_cols; ++k) {
-                dot += rowPtrs_[i][k] * rhs.rowPtrs_[k][j];
-            }
-        }
-    }
-    return dproduct;
-}
-
-Matrix Matrix::dotT(const Matrix &rhs) const {
-    if (n_cols != rhs.n_cols) {
-        throw MatrixInnerDimensionsMismatch(
-            std::make_pair(n_rows, n_cols),
-            std::make_pair(rhs.n_cols, rhs.n_rows));
-    }
-    Matrix dproduct(n_rows, rhs.n_rows);
-    for (size_t i = 0; i < dproduct.n_rows; ++i) {
-        for (size_t j = 0; j < dproduct.n_cols; ++j) {
-            double &dot = dproduct.rowPtrs_[i][j];
-            for (size_t k = 0; k < n_cols; ++k) {
-                dot += rowPtrs_[i][k] * rhs.rowPtrs_[j][k];
-            }
-        }
-    }
-    return dproduct;
-}
-
-Matrix Matrix::Tdot(const Matrix &rhs) const {
-    if (n_rows != rhs.n_rows) {
-        throw MatrixInnerDimensionsMismatch(
-            std::make_pair(n_cols, n_rows),
-            std::make_pair(rhs.n_rows, rhs.n_cols));
-    }
-    Matrix dproduct(n_cols, rhs.n_cols);
-    for (size_t i = 0; i < dproduct.n_rows; ++i) {
-        for (size_t j = 0; j < dproduct.n_cols; ++j) {
-            double &dot = dproduct.rowPtrs_[i][j];
-            for (size_t k = 0; k < n_rows; ++k) {
-                dot += rowPtrs_[k][i] * rhs.rowPtrs_[k][j];
-            }
-        }
-    }
-    return dproduct;
-}
-
-Matrix Matrix::T() const {
-    Matrix T(n_cols, n_rows);
-    for (size_t i = 0; i < n_rows; ++i) {
-        for (size_t j = 0; j < n_cols; ++j) {
-            T.rowPtrs_[j][i] = rowPtrs_[i][j];
-        }
-    }
-    return T;
-}
-
-std::pair<size_t, size_t> Matrix::getMaxVal() const {
-    std::pair<size_t, size_t> max{-1, -1};
-    double maxVal = -INFINITY;
-
-    for (size_t i = 0; i < n_rows; ++i) {
-        for (size_t j = 0; j < n_cols; ++j) {
-            if (rowPtrs_[i][j] >= maxVal) {
-                maxVal = rowPtrs_[i][j];
-                max = std::make_pair(i, j);
-            }
-        }
-    }
-    return max;
-}

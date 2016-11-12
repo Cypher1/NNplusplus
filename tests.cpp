@@ -44,8 +44,8 @@ void parseInput(const std::string &fileName, std::vector<Matrix> &inputs,
 
         ss >> target;
         Matrix newTarget(1, 10);
-        for (unsigned int m = 0; m < newTarget.getNumOfRows(); ++m) {
-            for (unsigned int n = 0; n < newTarget.getNumOfCols(); ++n) {
+        for (unsigned int m = 0; m < newTarget.nRows(); ++m) {
+            for (unsigned int n = 0; n < newTarget.nCols(); ++n) {
                 newTarget(m, n) = 0.01;
             }
         }
@@ -141,41 +141,54 @@ void testResults() {
 
 void testMatrix() {
     testBatch("Matrix Class");
-    size_t m = 1000;
-    size_t n = 1000;
-    const int init_v = 2;
-    const int add_v = 10;
+    size_t m = 10;  // 00;
+    size_t n = 10;  // 00;
+    const double init_v = 2;
+    const double add_v = 10;
     bool match;
 
     Matrix mtrx(m, n);
     Matrix mtrxB(n, m);
 
-    check("Initialization size (rows)", mtrx.getNumOfRows() == m);
-    check("Initialization size (columns)", mtrx.getNumOfCols() == n);
+    check("Initialization size (rows)", mtrx.nRows() == m);
+    check("Initialization size (columns)", mtrx.nCols() == n);
 
-    check("Initialization size B (rows)", mtrx.getNumOfRows() == n);
-    check("Initialization size B (columns)", mtrx.getNumOfCols() == m);
+    check("Initialization size B (rows)", mtrx.nRows() == n);
+    check("Initialization size B (columns)", mtrx.nCols() == m);
 
     match = true;
-    mtrx.apply([&match](const double &x) {
-        if (x != 0) match = false;
-    });
+    for (size_t i = 0; i < mtrx.nRows() && match; ++i) {
+        for (size_t j = 0; j < mtrx.nCols() && match; ++j) {
+            if (mtrx(i, j) != 0) match = false;
+        }
+    }
     check("Initialize all mtrx entries to 0 by default", match);
 
-    mtrx.apply([](double &x) { x = init_v; });
+    for (size_t i = 0; i < mtrx.nRows(); ++i) {
+        for (size_t j = 0; j < mtrx.nCols(); ++j) {
+            mtrx(i, j) = init_v;
+        }
+    }
+    mtrx.apply([](const double &) { return 2.0; });
 
     match = true;
-    mtrx.apply([&match](const double &x) {
-        if (x != init_v) match = false;
-    });
+    for (size_t i = 0; i < mtrx.nRows() && match; ++i) {
+        for (size_t j = 0; j < mtrx.nCols() && match; ++j) {
+            if (mtrx(i, j) != init_v) match = false;
+        }
+    }
     check("Initialize all mtrx entries to " + std::to_string(init_v), match);
     int count = 1;
-    mtrxB.apply([&count](double &x) { x = count++; });
+    for (size_t i = 0; i < mtrxB.nRows(); ++i) {
+        for (size_t j = 0; j < mtrxB.nCols(); ++j) {
+            mtrxB(i, j) = count++;
+        }
+    }
 
     match = true;
     count = 1;
-    for (size_t i = 0; i < mtrxB.getNumOfRows() && match; ++i) {
-        for (size_t j = 0; j < mtrxB.getNumOfCols() && match; ++j) {
+    for (size_t i = 0; i < mtrxB.nRows() && match; ++i) {
+        for (size_t j = 0; j < mtrxB.nCols() && match; ++j) {
             if (mtrxB(i, j) != count) {
                 match = false;
             }
@@ -184,12 +197,13 @@ void testMatrix() {
     }
     check("Initialize all entries to their index", match);
 
-    check("Equality  a == a", mtrxB == mtrxB);
+    check("Equality  a == a",
+          mtrxB == (UniformMatrix(1).resize(mtrxB) * mtrxB));
 
     match = true;
     const Matrix const_cpy(mtrxB);
-    for (size_t i = 0; i < mtrxB.getNumOfRows() && match; ++i) {
-        for (size_t j = 0; j < mtrxB.getNumOfCols() && match; ++j) {
+    for (size_t i = 0; i < mtrxB.nRows() && match; ++i) {
+        for (size_t j = 0; j < mtrxB.nCols() && match; ++j) {
             if (mtrxB(i, j) != const_cpy(i, j)) {
                 // This uses two different operator()s
                 // Do not replace with == as that uses both as const
@@ -206,16 +220,17 @@ void testMatrix() {
         "Equality with a double means equal to a matrix filled with that "
         "double " +
             std::to_string(init_v),
-        mtrx == init_v);
+        mtrx == UniformMatrix(init_v).resize(mtrx));
     check(
         "Inequality with a double means equal to a matrix filled with that "
         "double",
-        (init_v + 1) != mtrx);
+        (UniformMatrix(init_v).resize(mtrx) + UniformMatrix(1).resize(mtrx)) !=
+            mtrx);
 
     Matrix B_T = mtrxB.T();
     match = true;
-    for (size_t i = 0; i < mtrxB.getNumOfRows() && match; ++i) {
-        for (size_t j = 0; j < mtrxB.getNumOfCols() && match; ++j) {
+    for (size_t i = 0; i < mtrxB.nRows() && match; ++i) {
+        for (size_t j = 0; j < mtrxB.nCols() && match; ++j) {
             if (mtrxB(i, j) != B_T(j, i)) {
                 match = false;
             }
@@ -226,8 +241,8 @@ void testMatrix() {
 
     match = true;
     Matrix mtrx_add_BT(mtrx + B_T);
-    for (size_t i = 0; i < mtrx.getNumOfRows() && match; ++i) {
-        for (size_t j = 0; j < mtrx.getNumOfCols() && match; ++j) {
+    for (size_t i = 0; i < mtrx.nRows() && match; ++i) {
+        for (size_t j = 0; j < mtrx.nCols() && match; ++j) {
             if (mtrx_add_BT(i, j) != mtrx(i, j) + B_T(i, j)) {
                 match = false;
             }
@@ -237,8 +252,8 @@ void testMatrix() {
 
     match = true;
     Matrix BT_add_mtrx(B_T + mtrx);
-    for (size_t i = 0; i < mtrx.getNumOfRows() && match; ++i) {
-        for (size_t j = 0; j < mtrx.getNumOfCols() && match; ++j) {
+    for (size_t i = 0; i < mtrx.nRows() && match; ++i) {
+        for (size_t j = 0; j < mtrx.nCols() && match; ++j) {
             if (BT_add_mtrx(i, j) != mtrx(i, j) + B_T(i, j)) {
                 match = false;
             }
@@ -246,10 +261,10 @@ void testMatrix() {
     }
     check("Addition commutativity (b+a)(i, j) == a(i, j)+b(i, j)", match);
 
-    mtrx += add_v;
+    mtrx = mtrx + UniformMatrix(add_v).resize(mtrx);
     match = true;
-    for (size_t i = 0; i < mtrx.getNumOfRows() && match; ++i) {
-        for (size_t j = 0; j < mtrx.getNumOfCols() && match; ++j) {
+    for (size_t i = 0; i < mtrx.nRows() && match; ++i) {
+        for (size_t j = 0; j < mtrx.nCols() && match; ++j) {
             if (mtrx(i, j) != init_v + add_v) {
                 match = false;
             }
@@ -258,14 +273,14 @@ void testMatrix() {
     check("Internal addition of a scalar and a matrix", match);
 
     const Matrix tmp = mtrx;
-    mtrx += B_T;
+    mtrx = mtrx + B_T;
     check("Internal addition of a matrix and a matrix", mtrx == tmp + B_T);
 
     Matrix tmp_2 = mtrx;
-    tmp_2 += add_v;
+    tmp_2 = tmp_2 + UniformMatrix(add_v).resize(tmp_2);
     match = true;
-    for (size_t i = 0; i < mtrx.getNumOfRows() && match; ++i) {
-        for (size_t j = 0; j < mtrx.getNumOfCols() && match; ++j) {
+    for (size_t i = 0; i < mtrx.nRows() && match; ++i) {
+        for (size_t j = 0; j < mtrx.nCols() && match; ++j) {
             if (tmp_2(i, j) != mtrx(i, j) + add_v) {
                 match = false;
             }
@@ -273,33 +288,39 @@ void testMatrix() {
     }
     check("Internal addition of a matrix and a matrix", match);
 
-    check("Negation a-a == 0", mtrxB - mtrxB == 0);
+    check("Negation a-a == 0", mtrxB - mtrxB == UniformMatrix(0).resize(mtrxB));
     check("Multiplication by zero equals the zero matrix 0*a == 0",
-          0 * mtrxB == 0);
+          UniformMatrix(0).resize(mtrxB) * mtrxB ==
+              UniformMatrix(0).resize(mtrxB));
 
-    check("Addition of zero does not effect equality", mtrxB + 0 == mtrxB);
-    check("Addition of zero does not effect inequality", mtrxB + 0 != mtrx);
+    check("Addition of zero does not effect equality",
+          mtrxB + UniformMatrix(0).resize(mtrxB) == mtrxB);
+    check("Addition of zero does not effect inequality",
+          mtrxB + UniformMatrix(0).resize(mtrxB) != mtrx);
 
     check("Negation of a matrix and a matrix", tmp == mtrx - B_T);
 
-    mtrx -= B_T;
+    mtrx = mtrx - B_T;
     check("Internal negation of a matrix and a matrix", tmp == mtrx);
 
-    check("Matrix negation by scalar -a == -1*a", -mtrx == -1 * mtrx);
+    check("Matrix negation by scalar -a == -1*a",
+          UniformMatrix(0).resize(mtrx) - mtrx ==
+              UniformMatrix(-1).resize(mtrx) * mtrx);
 
     check("Matrix multiplication by scalar a+a == 2*a",
-          mtrx + mtrx == 2 * mtrx);
+          mtrx + mtrx == UniformMatrix(2).resize(mtrx) * mtrx);
 
     check("Equivalent matrix calculations equal",
-          (mtrx * mtrxB + mtrx) * (mtrx + 2) ==
-              (2 + mtrx) * mtrx * mtrxB + mtrx * (mtrx + 2));
+          (mtrx * mtrxB + mtrx) * (mtrx + UniformMatrix(2).resize(mtrx)) ==
+              (UniformMatrix(2).resize(mtrx) + mtrx) * mtrx * mtrxB +
+                  mtrx * (mtrx + UniformMatrix(2).resize(mtrx)));
 
     Matrix mtrx10x11(10, 11);
     Matrix mtrx12x13(12, 13);
 
     bool threw = false;
     try {
-        mtrx10x11 += mtrx12x13;
+        mtrx10x11 + mtrx12x13;
     } catch (std::exception &) {
         // std::cout << e.what() << '\n';
         threw = true;
@@ -309,7 +330,7 @@ void testMatrix() {
 
     threw = false;
     try {
-        mtrx10x11 -= mtrx12x13;
+        mtrx10x11 - mtrx12x13;
     } catch (std::exception &) {
         // std::cout << e.what() << '\n';
         threw = true;
@@ -319,7 +340,7 @@ void testMatrix() {
 
     threw = false;
     try {
-        mtrx10x11 *= mtrx12x13;
+        mtrx10x11 *mtrx12x13;
     } catch (std::exception &) {
         // std::cout << e.what() << '\n';
         threw = true;
@@ -329,7 +350,7 @@ void testMatrix() {
 
     threw = false;
     try {
-        mtrx10x11 /= mtrx12x13;
+        mtrx10x11 / mtrx12x13;
     } catch (std::exception &) {
         // std::cout << e.what() << '\n';
         threw = true;
@@ -349,21 +370,15 @@ void testMatrix() {
 
     std::vector<double> va{1, 2, 3, 4, 5};
 
-    Matrix ma(va.begin(), va.end(), 1, 5);
+    Matrix ma(va.begin(), va.end(), 5, 1);
 
     std::vector<double> vb{1, 2, 3};
     Matrix mb(vb.begin(), vb.end(), 1, 3);
 
-    check("Dot product of a.T() and b == a.Tdot(b)",
-          ma.T().dot(mb) == ma.Tdot(mb));
-    Matrix ma2 = ma.T();
-    Matrix mb2 = mb.T();
-    check("Dot product of a and b.T() == a.dotT(b)",
-          ma2.dot(mb) == ma2.dotT(mb2));
+    check("a dot b == (bT dot aT)T", ma.dot(mb) == mb.T().dot(ma.T()).T());
 
-    check("a dot b == (bT dot aT)T", ma2.dot(mb) == mb2.dot(ma).T());
-
-    check("Division by a matrix", mtrx / mtrxB == (1.0 / mtrxB) * mtrx);
+    check("Division by a matrix",
+          mtrx / mtrxB == (UniformMatrix(1.0).resize(mtrxB) / mtrxB) * mtrx);
 
     testResults();
     /*
@@ -426,7 +441,6 @@ void testMatrix() {
     mtrxB.dot(mtrx);
 
     throw MatrixDimensionsMismatch();
-    throw MatrixInnerDimensionsMismatch();
     */
 }
 
@@ -445,11 +459,11 @@ void testNeuralNet() {
     std::cout << "Size of inputs: " << testInputs.size()
               << " and size of targetOutputs: " << testTargetOutputs.size()
               << std::endl;
-    std::cout << "Size of inputs matrices: " << testInputs[0].getNumOfRows()
-              << "," << testInputs[0].getNumOfCols()
+    std::cout << "Size of inputs matrices: " << testInputs[0].nRows() << ","
+              << testInputs[0].nCols()
               << " and size of targetOutputs matrices: "
-              << testTargetOutputs[0].getNumOfRows() << ","
-              << testTargetOutputs[0].getNumOfCols() << std::endl;
+              << testTargetOutputs[0].nRows() << ","
+              << testTargetOutputs[0].nCols() << std::endl;
 
     testBatch("Untrained NeuralNet");
     for (unsigned int i = 0; i < testInputs.size(); ++i) {

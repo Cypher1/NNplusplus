@@ -51,7 +51,7 @@ int main(int /*argc*/, const char * /*argv*/[]) {
     parseInput("data/training_data/mnist_train_100.txt", trainingInputs, trainingTargetOutputs);
     std::cout << "Number of instances: " << trainingInputs.size() << std::endl;
     std::cout << "Size of inputs: " << trainingInputs.size() << " and size of targetOutputs: " << trainingTargetOutputs.size() << std::endl;
-    std::cout << "Size of inputs matrices: " << trainingInputs[78].getNumOfRows() << "," << trainingInputs[78].getNumOfCols() << " and size of targetOutputs matrices: " << trainingTargetOutputs[78].getNumOfRows() << "," << trainingTargetOutputs[78].getNumOfCols() << std::endl;
+    std::cout << "Size of inputs matrices: " << trainingInputs[78].nRows() << "," << trainingInputs[78].nCols() << " and size of targetOutputs matrices: " << trainingTargetOutputs[78].nRows() << "," << trainingTargetOutputs[78].nCols() << std::endl;
 
 
     // Get a vector of shuffled indices. Effectively shuffling the data.
@@ -174,7 +174,7 @@ int main(int /*argc*/, const char * /*argv*/[]) {
     parseInput("data/test_data/mnist_test_10.txt", testInputs, testTargetOutputs);
     std::cout << "Number of instances: " << testInputs.size() << std::endl;
     std::cout << "Size of inputs: " << testInputs.size() << " and size of targetOutputs: " << testTargetOutputs.size() << std::endl;
-    std::cout << "Size of inputs matrices: " << testInputs[0].getNumOfRows() << "," << testInputs[0].getNumOfCols() << " and size of targetOutputs matrices: " << testTargetOutputs[0].getNumOfRows() << "," << testTargetOutputs[0].getNumOfCols() << std::endl;
+    std::cout << "Size of inputs matrices: " << testInputs[0].nRows() << "," << testInputs[0].nCols() << " and size of targetOutputs matrices: " << testTargetOutputs[0].nRows() << "," << testTargetOutputs[0].nCols() << std::endl;
 
 
     double numOfTests = testInputs.size();
@@ -220,8 +220,8 @@ void parseInput(const std::string &fileName, std::vector<Matrix> &inputs, std::v
 
         ss >> target;
         Matrix newTarget(1,10);
-        for (unsigned int m = 0; m < newTarget.getNumOfRows(); ++m) {
-            for (unsigned int n = 0; n < newTarget.getNumOfCols(); ++n) {
+        for (unsigned int m = 0; m < newTarget.nRows(); ++m) {
+            for (unsigned int n = 0; n < newTarget.nCols(); ++n) {
                 newTarget(m,n) = 0.01;
             }
         }

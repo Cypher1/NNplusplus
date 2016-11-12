@@ -134,8 +134,7 @@ Matrix NeuralNet::queryNet(const Matrix &inputList) {
     outputs_[0] = finalOutput;
 
     for (size_t i = 0; i < weights_.size(); ++i) {
-        finalOutput = weights_[i].dot(finalOutput);
-        finalOutput.apply(activationFunction);
+        finalOutput = weights_[i].dot(finalOutput).apply(activationFunction);
         outputs_[i+1] = finalOutput;
     }
 
@@ -150,13 +149,12 @@ void NeuralNet::trainingCycle(const Matrix &inputList, const Matrix &targetOutpu
     // Update the weights going from the output nodes back
     for (long int i = weights_.size()-1; i >= 0; --i) {
         Matrix update(currLayerErrors);
-        update *= currOutput;
-        update *= 1-currOutput;
-        update = update.dotT(outputs_[i]);
-        update *= LR_;
-        weights_[i] += update;
+        update = update*currOutput*(UniformMatrix(1).resize(currOutput)-currOutput);
+        update = update.dot(outputs_[i].T());
+        update = update*UniformMatrix(LR_).resize(update);
+        weights_[i] = weights_[i]+update;
 
-        currLayerErrors = weights_[i].Tdot(currLayerErrors);
+        currLayerErrors = weights_[i].T().dot(currLayerErrors);
         currOutput = outputs_[i];
     }
 }
@@ -187,9 +185,9 @@ void NeuralNet::saveNetwork(const std::string &name) const {
     out << inNodes_ << " " << hiddNodes_ << " " << outNodes_ << " " << hiddLayers_ << " " << LR_ << std::endl;
 
     for (size_t i = 0; i < weights_.size(); ++i) {
-        out << weights_[i].getNumOfRows() << " " << weights_[i].getNumOfCols() << std::endl;
-        for (size_t m = 0; m < weights_[i].getNumOfRows(); ++m) {
-            for (size_t n = 0; n < weights_[i].getNumOfCols(); ++n) {
+        out << weights_[i].nRows() << " " << weights_[i].nCols() << std::endl;
+        for (size_t m = 0; m < weights_[i].nRows(); ++m) {
+            for (size_t n = 0; n < weights_[i].nCols(); ++n) {
                 out << weights_[i](m,n) << " ";
             }
             out << std::endl;
@@ -209,14 +207,17 @@ Matrix NeuralNet::initializeMatrix(const size_t rows, const size_t cols) const {
     std::default_random_engine generator((std::random_device()()));
     std::normal_distribution<double> distribution(0.0, std::pow(rows, -0.5));
 
-    return Matrix(rows, cols).apply([&distribution, &generator](double &x) {
-        x = distribution(generator);
-    });
+    std::vector<double> values;
+    for(size_t i = 0; i < rows*cols; ++i) {
+        values.push_back(distribution(generator));
+    }
+
+    return Matrix(values.begin(), values.end(), rows, cols);
 }
 
 // The activation function. Currently using Sigmoid function.
-double NeuralNet::activationFunction(double &x) {
-    return x = 1/(1+std::exp(-x));
+double NeuralNet::activationFunction(const double &x) {
+    return 1/(1+std::exp(-x));
 }
 
 std::string NeuralNet::getCurrTime() const {

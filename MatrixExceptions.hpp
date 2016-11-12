@@ -13,44 +13,29 @@
 #include <string>
 #include <utility>
 
+template<typename E>
+class MatrixExpr;
+
 class MatrixDimensionsMismatch : public std::exception {
    public:
-    MatrixDimensionsMismatch(std::pair<size_t, size_t> expected,
-                             std::pair<size_t, size_t> actual)
-        : expected_size{expected}, actual_size{actual} {}
+    MatrixDimensionsMismatch(const std::pair<size_t, size_t> &expected,
+                             const std::pair<size_t, size_t> &actual)
+        : expected{expected}, actual{actual} {}
 
-   private:
-    const char* what() const noexcept {
-        std::string expected = std::to_string(expected_size.first) + "x" +
-                               std::to_string(expected_size.second);
-        std::string actual = std::to_string(actual_size.first) + "x" +
-                             std::to_string(actual_size.second);
+    const char *what() const noexcept {
+        // const char *MatrixDimensionsMismatch::what() const noexcept {
+        std::string expected_s = std::to_string(expected.first) + "x" +
+                                 std::to_string(expected.second);
+        std::string actual_s =
+            std::to_string(actual.first) + "x" + std::to_string(actual.second);
         std::string what = "Matrix dimensions must be equal. \n\tGot [" +
-                           actual + "] expected [" + expected + "].\n";
+                           actual_s + "] expected [" + expected_s + "].\n";
         return what.c_str();
     }
-
-   protected:
-    std::pair<size_t, size_t> expected_size;
-    std::pair<size_t, size_t> actual_size;
-};
-
-class MatrixInnerDimensionsMismatch : public MatrixDimensionsMismatch {
-   public:
-    MatrixInnerDimensionsMismatch(std::pair<size_t, size_t> expected,
-                                  std::pair<size_t, size_t> actual)
-        : MatrixDimensionsMismatch(expected, actual) {}
 
    private:
-    const char* what() const noexcept {
-        std::string expected = std::to_string(expected_size.first) + "x[" +
-                               std::to_string(expected_size.second) + "]";
-        std::string actual = "[" + std::to_string(actual_size.first) + "]x" +
-                             std::to_string(actual_size.second);
-        std::string what = "Matrix inner dimensions must be equal. \n\tGot " +
-                           actual + " expected " + expected + ".\n";
-        return what.c_str();
-    }
+    const std::pair<size_t, size_t> &expected;
+    const std::pair<size_t, size_t> &actual;
 };
 
 #endif /* MATRIX_EXCEPTIONS_HPP */

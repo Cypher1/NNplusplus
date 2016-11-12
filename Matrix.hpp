@@ -12,12 +12,236 @@
 #ifndef MATRIX_HPP_
 #define MATRIX_HPP_
 
+#include <cmath>  // INFINITY
+#include <functional>
 #include <initializer_list>
+#include <iostream>
 #include <iterator>
 #include <utility>  // std::swap, std::move and std::pair
 #include "MatrixExceptions.hpp"
 
-class Matrix {
+template <typename L>
+class UnaryMatrix;
+template <typename L, typename R>
+class DotMatrix;
+
+template <typename E>
+class TransposeMatrix;
+
+class UniformMatrix;
+class Matrix;
+
+template <typename E>
+class MatrixExpr {
+   public:
+    double operator()(size_t r, size_t c) const {
+        return static_cast<E const &>(*this)(r, c);
+    }
+    size_t nRows() const { return static_cast<E const &>(*this).nRows(); }
+    size_t nCols() const { return static_cast<E const &>(*this).nCols(); }
+    size_t size() const { return nRows() * nCols(); }
+
+    operator Matrix() const;
+
+    UnaryMatrix<MatrixExpr<E>> apply(double (*functor)(const double &)) {
+        return UnaryMatrix<MatrixExpr<E>>(*this, functor);
+    }
+
+    TransposeMatrix<MatrixExpr<E>> T() const {
+        return TransposeMatrix<MatrixExpr<E>>(*this);
+    }
+
+    template <typename R>
+    DotMatrix<MatrixExpr<E>, R> dot(const R &rhs) const {
+        return DotMatrix<MatrixExpr<E>, R>(*this, rhs);
+    }
+
+    template <typename R>
+    bool operator==(const R &rhs) const {
+        if (rhs.nRows() != nRows() || rhs.nCols() != nCols()) {
+            return false;
+        }
+        for (size_t i = 0; i < nRows(); ++i) {
+            for (size_t j = 0; j < nCols(); ++j) {
+                double rv = rhs(i, j);
+                double lv = (*this)(i, j);
+                if (std::fabs((rv - lv) / lv) > 0.0000000001) {
+                    return false;
+                }
+            }
+        }
+        return true;
+    }
+
+    template <typename R>
+    bool operator!=(const R &rhs) const {
+        return !((*this) == rhs);
+    }
+
+    friend std::ostream &operator<<(std::ostream &os, const MatrixExpr &rhs) {
+        os << "[";
+        for (auto i = 0U; i < rhs.nRows(); ++i) {
+            os << "[";
+            for (auto j = 0U; j < rhs.nCols(); ++j) {
+                if (j != 0) {
+                    os << ", ";
+                }
+                os << rhs(i, j);
+            }
+            os << "]";
+        }
+        os << "]";
+        return os;
+    }
+
+    std::pair<size_t, size_t> getMaxVal() const {
+        double curr = -INFINITY;
+        std::pair<size_t, size_t> max = std::make_pair(-1, -1);
+        for (size_t i = 0; i < nRows(); ++i) {
+            for (size_t j = 0; j < nCols(); ++j) {
+                double next = (*this)(i, j);
+                if (next > curr) {
+                    curr = next;
+                    max = std::make_pair(i, j);
+                }
+            }
+        }
+        return max;
+    }
+
+    // The following overload conversions to E, the template argument type;
+    // e.g., for VecExpression<VecSum>, this is a conversion to VecSum.
+    // operator E &()() { return static_cast<E &>(*this); }
+    // operator E const &()() const { return static_cast<const E &>(*this); }
+};
+
+template <typename L, typename R>
+class CombineMatrix : public MatrixExpr<CombineMatrix<L, R>> {
+    L const &l;
+    R const &r;
+    double (*functor)(const double &, const double &);
+
+   public:
+    CombineMatrix(L const &l, R const &r,
+                  double (*functor)(const double &, const double &))
+        : l(l), r(r), functor(functor) {
+        if (l.nRows() != r.nRows() || l.nCols() != r.nCols()) {
+            throw MatrixDimensionsMismatch(
+                std::make_pair(l.nRows(), l.nCols()),
+                std::make_pair(r.nRows(), r.nCols()));
+        }
+    }
+
+    double operator()(const size_t &row, const size_t &col) const {
+        return functor(l(row, col), r(row, col));
+    }
+    size_t nRows() const { return l.nRows(); }
+    size_t nCols() const { return l.nCols(); }
+};
+
+template <typename L>
+class UnaryMatrix : public MatrixExpr<UnaryMatrix<L>> {
+    L const &l;
+    double (*functor)(const double &);
+
+   public:
+    UnaryMatrix(L const &l, double (*functor)(const double &))
+        : l{l}, functor{functor} {}
+
+    double operator()(const size_t &row, const size_t &col) const {
+        return functor(l(row, col));
+    }
+    size_t nRows() const { return l.nRows(); }
+    size_t nCols() const { return l.nCols(); }
+};
+
+template <typename L>
+class TransposeMatrix : public MatrixExpr<TransposeMatrix<L>> {
+    L const &l;
+
+   public:
+    TransposeMatrix(L const &l) : l{l} {}
+
+    double operator()(const size_t &row, const size_t &col) const {
+        return l(col, row);
+    }
+    size_t nRows() const { return l.nCols(); }
+    size_t nCols() const { return l.nRows(); }
+};
+
+template <typename L, typename R>
+class DotMatrix : public MatrixExpr<DotMatrix<L, R>> {
+    L const &l;
+    R const &r;
+
+   public:
+    DotMatrix(L const &l, R const &r) : l(l), r(r) {
+        if (l.nCols() != r.nRows()) {
+            throw MatrixDimensionsMismatch(
+                std::make_pair(l.nRows(), l.nCols()),
+                std::make_pair(r.nRows(), r.nCols()));
+        }
+    }
+
+    double operator()(const size_t &row, const size_t &col) const {
+        double d = 0;
+        for (size_t k = 0; k < l.nCols(); ++k) {
+            d += l(row, k) * r(k, col);
+        }
+        return d;
+    }
+    size_t nRows() const { return l.nRows(); }
+    size_t nCols() const { return r.nCols(); }
+};
+
+class UniformMatrix : public MatrixExpr<UniformMatrix> {
+    const double value;
+    const size_t n_rows;
+    const size_t n_cols;
+
+   public:
+    UniformMatrix(const double &value, const size_t &r = 1, const size_t &c = 1)
+        : value{value}, n_rows{r}, n_cols{c} {}
+
+    UniformMatrix resize(const size_t &r, const size_t &c) {
+        return UniformMatrix(value, r, c);
+    }
+
+    template <typename E>
+    UniformMatrix resize(const MatrixExpr<E> &o) {
+        return resize(o.nRows(), o.nCols());
+    }
+
+    double operator()(const size_t &, const size_t &) const { return value; }
+    size_t nRows() const { return n_rows; }
+    size_t nCols() const { return n_cols; }
+};
+
+template <typename L, typename R>
+CombineMatrix<L, R> const operator+(L const &l, R const &r) {
+    auto op = [](const double &l, const double &r) { return l + r; };
+    return CombineMatrix<L, R>(l, r, op);
+}
+
+template <typename L, typename R>
+CombineMatrix<L, R> const operator-(L const &l, R const &r) {
+    auto op = [](const double &l, const double &r) { return l - r; };
+    return CombineMatrix<L, R>(l, r, op);
+}
+
+template <typename L, typename R>
+CombineMatrix<L, R> const operator*(L const &l, R const &r) {
+    auto op = [](const double &l, const double &r) { return l * r; };
+    return CombineMatrix<L, R>(l, r, op);
+}
+
+template <typename L, typename R>
+CombineMatrix<L, R> const operator/(L const &l, R const &r) {
+    auto op = [](const double &l, const double &r) { return l / r; };
+    return CombineMatrix<L, R>(l, r, op);
+}
+
+class Matrix : public MatrixExpr<Matrix> {
    public:
     /**********************************************************
      * Constructors
@@ -31,25 +255,60 @@ class Matrix {
     template <typename IT>
     Matrix(const IT begin, const IT end, const size_t m, const size_t n)
         : Matrix(m, n) {
-        size_t size = std::distance(begin, end);
-        if (m * n != size) {
-            throw MatrixDimensionsMismatch(std::make_pair(m, n),
-                                           std::make_pair(size, 1));
+        size_t size_ = std::distance(begin, end);
+        if (size() != size_) {
+            Matrix other(begin, end, size_, 1);
+            throw MatrixDimensionsMismatch(std::make_pair(nRows(), nCols()),
+                                           std::make_pair(size_, 1));
         }
-        std::copy(begin, end, matrix_);
+
+        auto it = begin;
+        for (size_t i = 0; i < nRows(); ++i) {
+            for (size_t j = 0; j < nCols(); ++j) {
+                (*this)(i, j) = *it;
+                ++it;
+            }
+        }
     }
 
     // Initializer list ctor
-    template <typename T>
-    Matrix(const std::initializer_list<T> list)
-        : Matrix(list.begin(), list.end(), 1,
-                 std::distance(list.begin(), list.end())) {}
+    Matrix(const std::initializer_list<double> list)
+        : Matrix(list.begin(), list.end(),
+                 std::distance(list.begin(), list.end()), 1) {}
 
-    // COPY ctor
-    Matrix(const Matrix &rhs);
+    // expr convertor / COPY ctor
+    template <typename R>
+    Matrix(const MatrixExpr<R> &rhs) : Matrix(rhs.nRows(), rhs.nCols()) {
+        for (size_t i = 0; i < nRows(); ++i) {
+            for (size_t j = 0; j < nCols(); ++j) {
+                (*this)(i, j) = rhs(i, j);
+            }
+        }
+    }
+    Matrix(const Matrix &rhs) : Matrix(rhs.nRows(), rhs.nCols()) {
+        for (size_t i = 0; i < nRows(); ++i) {
+            for (size_t j = 0; j < nCols(); ++j) {
+                (*this)(i, j) = rhs(i, j);
+            }
+        }
+    }
 
     // Copy assignment operator
-    Matrix &operator=(const Matrix &rhs);
+    Matrix &operator=(const Matrix &rhs) {
+        if (this != &rhs) {
+            if (nRows() != rhs.nRows() || nCols() != rhs.nCols()) {
+                Matrix copy(rhs);
+                std::swap(*this, copy);
+            } else {
+                for (size_t i = 0; i < nRows(); ++i) {
+                    for (size_t j = 0; j < nCols(); ++j) {
+                        (*this)(i, j) = rhs(i, j);
+                    }
+                }
+            }
+        }
+        return *this;
+    }
 
     // MOVE ctor
     Matrix(Matrix &&rhs);
@@ -64,166 +323,18 @@ class Matrix {
      * Operator Overloads
      **********************************************************/
 
-    // A substitute to operator[] for a 2D arrays
-    double &operator()(const size_t row, const size_t col);
-
-    const double &operator()(const size_t row, const size_t col) const;
-
-    // EQUALITY
-    bool operator==(const Matrix &rhs) const;
-    bool operator==(const double &rhs) const;
-    friend bool operator==(const double &lhs, const Matrix &rhs) {
-        return rhs == lhs;
-    }
-    friend bool operator!=(const double &lhs, const Matrix &rhs) {
-        return !(lhs == rhs);
-    }
-    friend bool operator!=(const Matrix &lhs, const double &rhs) {
-        return !(lhs == rhs);
-    }
-    friend bool operator!=(const Matrix &lhs, const Matrix &rhs) {
-        return !(lhs == rhs);
-    }
-
-    // ADDITION
-    Matrix &operator+=(const Matrix &rhs);
-
-    Matrix &operator+=(const double scalar) {
-        return apply([&scalar](double &x) { x += scalar; });
-    }
-
-    // Term by term addition operator for two matricies.
-    friend Matrix operator+(const Matrix &lhs, const Matrix &rhs) {
-        return Matrix(lhs) += rhs;
-    }
-
-    // Term by term addition operator for matrix and scalar.
-    friend Matrix operator+(const Matrix &lhs, const double scalar) {
-        return Matrix(lhs) += scalar;
-    }
-
-    // Allowing for the scalar addition commutative property.
-    friend Matrix operator+(const double scalar, const Matrix &rhs) {
-        return rhs + scalar;
-    }
-
-    // SUBTRACTION
-    Matrix &operator-=(const Matrix &rhs);
-
-    Matrix &operator-=(const double scalar) {
-        return apply([&scalar](double &x) { x -= scalar; });
-    }
-
-    // Term by term subtraction operator for two matricies.
-    friend Matrix operator-(const Matrix &lhs, const Matrix &rhs) {
-        return Matrix(lhs) -= rhs;
-    }
-
-    // Term by term subtraction operator for matrix and scalar.
-    friend Matrix operator-(const Matrix &lhs, const double scalar) {
-        return Matrix(lhs) -= scalar;
-    }
-
-    // Term by term subtraction operator for scalar and matrix.
-    friend Matrix operator-(const double scalar, const Matrix &rhs) {
-        return -rhs + scalar;
-    }
-
-    // MULTIPLICATION
-    Matrix &operator*=(const Matrix &rhs);
-
-    Matrix &operator*=(const double scalar) {
-        return apply([&scalar](double &x) { x *= scalar; });
-    }
-
-    // "Regular", term by term multiplication operator.
-    // See function dot(Matrix &rhs) for dot product.
-    friend Matrix operator*(const Matrix &lhs, const Matrix &rhs) {
-        return Matrix(lhs) *= rhs;
-    }
-
-    // "Regular" scalar multiplication over matrix.
-    friend Matrix operator*(const Matrix &lhs, const double scalar) {
-        return Matrix(lhs) *= scalar;
-    }
-
-    // Allowing for the scalar multiplication commutative property.
-    friend Matrix operator*(const double scalar, const Matrix &rhs) {
-        return rhs * scalar;
-    }
-
-    // DIVISION
-    Matrix &operator/=(const Matrix &rhs);
-
-    Matrix &operator/=(const double scalar) {
-        return apply([&scalar](double &x) { x /= scalar; });
-    }
-
-    // Term by term division operator for two matricies.
-    friend Matrix operator/(const Matrix &lhs, const Matrix &rhs) {
-        return Matrix(lhs) /= rhs;
-    }
-
-    // Term by term division operator for matrix and scalar.
-    friend Matrix operator/(const Matrix &lhs, const double scalar) {
-        return Matrix(lhs) /= scalar;
-    }
-
-    // Term by term division operator for scalar and matrix.
-    friend Matrix operator/(const double scalar, const Matrix &rhs) {
-        return rhs.apply([&scalar](double &x) { x = scalar / x; });
-    }
-
-    // Unary minus operator for Matrix term by term negation
-    Matrix operator-() const { return -1 * (*this); }
-
-    // Print matrix
-    friend std::ostream &operator<<(std::ostream &os, const Matrix &rhs);
-
-    /**********************************************************
-     * Other Functions
-     **********************************************************/
-
-    // A simple matrix algebra dot product operation.
-    // Return a 0 by 0 matrix if the dimensions do not match.
-    // See operator*(Matrix &rhs) for term by term multiplication.
-    Matrix dot(const Matrix &rhs) const;
-    Matrix dotT(const Matrix &rhs) const;
-    Matrix Tdot(const Matrix &rhs) const;
-
     // Get number of rows (M)xN
-    constexpr size_t getNumOfRows() const { return n_rows; }
+    size_t nRows() const { return n_rows; }
 
     // Get number of columns Mx(N)
-    constexpr size_t getNumOfCols() const { return n_cols; }
+    size_t nCols() const { return n_cols; }
 
-    // Get number of entries M*N
-    constexpr size_t size() const { return n_rows * n_cols; }
-
-    // Transpose the matrix MxN -> NxM
-    Matrix T() const;
-
-    // Applies a function (double->double) to all the values of a matrix
-    template <typename Func>
-    Matrix &apply(Func functor) {
-        for (size_t i = 0; i < size(); ++i) {
-            functor(matrix_[i]);
-        }
-        return *this;
+    double operator()(const size_t row, const size_t col) const {
+        return rowPtrs_[row][col];
     }
-
-    // Const form
-    template <typename Func>
-    Matrix apply(Func functor) const {
-        return Matrix(*this).apply(functor);
+    double &operator()(const size_t row, const size_t col) {
+        return rowPtrs_[row][col];
     }
-
-    // Get the coordinates of the largest value in the matrix.
-    // Will return the coordinates of the earliest larger val.
-    std::pair<size_t, size_t> getMaxVal() const;
-
-    // Print the matrix to std::cout
-    void printMtrx() const;
 
    private:
     size_t n_rows;      // (M)xN
@@ -233,5 +344,16 @@ class Matrix {
                         // used to avoid repeated arithmetics
                         // at each access to the matrix.
 };
+
+template <typename E>
+MatrixExpr<E>::operator Matrix() const {
+    Matrix n = Matrix(nRows(), nCols());
+    for (size_t i = 0; i < nRows(); ++i) {
+        for (size_t j = 0; j < nCols(); ++j) {
+            n(i, j) = (*this)(i, j);
+        }
+    }
+    return n;
+}
 
 #endif /* MATRIX_HPP_ */
